@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-import sys, os
+import sys
+import os
 
-# Ensures Python can locate your modules inside the subdirectory
-sys.path.insert(0, "Project - AEGIS")
-from aegis import run_pipeline
+# Dynamically add the current folder to the path, no matter what it's named
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+try:
+    from aegis import run_pipeline
+except ImportError:
+    # Fallback in case it's executing from one level up
+    sys.path.insert(0, os.path.join(current_dir, "Project - AEGIS"))
+    from aegis import run_pipeline
 
 app = FastAPI(title="Project Aegis")
 
