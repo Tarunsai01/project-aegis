@@ -22,3 +22,4 @@ def query(q: Query):
 @app.get("/")
 def health():
     return {"status": "running", "project": "Aegis LLM Gateway"}
+run_pipeline = process
