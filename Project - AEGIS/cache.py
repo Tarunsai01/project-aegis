@@ -19,7 +19,7 @@ from sentence_transformers import SentenceTransformer
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 # PersistentClient means cache survives restarts — data lives in ./aegis_cache/
-db = chromadb.PersistentClient(path="./aegis_cache")
+db = chromadb.EphemeralClient()
 collection = db.get_or_create_collection(name="llm_cache")
 
 # 0.85 = tight enough to avoid false hits, loose enough to catch paraphrases
