@@ -115,3 +115,4 @@ if __name__ == "__main__":
     for query in queries:
         result = process(query)
         print(f"\n[RESPONSE]\n{result}\n")
+run_pipeline = process
