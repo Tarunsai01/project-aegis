@@ -13,12 +13,15 @@
 # At $0.002/call that's ~$240/month saved from one layer.
 
 import chromadb
-from sentence_transformers import SentenceTransformer
+from fastembed import TextEmbedding
 
-# all-MiniLM-L6-v2: 80MB, runs locally, no API calls, fast enough for prod
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
+# BAAI/bge-small-en-v1.5: ~130MB, ONNX runtime, no PyTorch/CUDA —
+# fits comfortably in Render's 512MB free tier
+embedder = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
 
-# PersistentClient means cache survives restarts — data lives in ./aegis_cache/
+# EphemeralClient: in-memory only, resets on restart —
+# fine for Render's free tier ephemeral disk. Swap for
+# PersistentClient + a paid Render disk if you need durability.
 db = chromadb.EphemeralClient()
 collection = db.get_or_create_collection(name="llm_cache")
 
@@ -29,7 +32,7 @@ SIMILARITY_THRESHOLD = 0.85
 
 def get_embedding(text: str) -> list:
     """Converts text to a vector — the numeric fingerprint of its meaning."""
-    return embedder.encode(text).tolist()
+    return list(embedder.embed([text]))[0].tolist()
 
 
 def check_cache(query: str) -> str | None:
