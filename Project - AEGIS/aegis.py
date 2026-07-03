@@ -54,7 +54,7 @@ def call_llm(prompt: str, model_config: dict) -> str:
     return text
 
 
-def process(raw_prompt: str) -> str:
+def process(raw_prompt: str) -> dict:
     """
     The Aegis pipeline. Single entry point for all queries.
 
@@ -62,7 +62,8 @@ def process(raw_prompt: str) -> str:
         raw_prompt: Raw user input, potentially containing PII.
 
     Returns:
-        Clean LLM response — either from cache or live inference.
+        Dict with the response text plus pipeline metadata:
+        { response, cache_hit, model, pii_redacted }
     """
     print("\n" + "=" * 55)
     print(f"[AEGIS] Input: {raw_prompt[:60]}...")
@@ -70,6 +71,7 @@ def process(raw_prompt: str) -> str:
 
     # --- Layer 1: PII Scrubbing ---
     clean_prompt, audit = scrub(raw_prompt)
+    pii_redacted = [i["pii_type"] for i in audit] if audit else []
 
     if audit:
         redacted = [f"{i['pii_type']} ({i['confidence']})" for i in audit]
@@ -82,7 +84,12 @@ def process(raw_prompt: str) -> str:
 
     if cached_response:
         print("[AEGIS] Returning cached response")
-        return cached_response
+        return {
+            "response": cached_response,
+            "cache_hit": True,
+            "model": "cache",
+            "pii_redacted": pii_redacted,
+        }
 
     # --- Layer 3: Model Routing ---
     model_config = route(clean_prompt)
@@ -93,7 +100,12 @@ def process(raw_prompt: str) -> str:
     # Store for future hits
     store_in_cache(clean_prompt, response)
 
-    return response
+    return {
+        "response": response,
+        "cache_hit": False,
+        "model": model_config["id"],
+        "pii_redacted": pii_redacted,
+    }
 
 
 if __name__ == "__main__":
@@ -115,4 +127,5 @@ if __name__ == "__main__":
     for query in queries:
         result = process(query)
         print(f"\n[RESPONSE]\n{result}\n")
+
 run_pipeline = process
