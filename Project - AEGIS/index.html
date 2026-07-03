@@ -24,6 +24,8 @@
     --amber-dim: #4A3A16;
     --coral: #E8604C;
     --coral-dim: #3F241D;
+    --green: #4ADE80;
+    --green-dim: #1C3A28;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
@@ -34,6 +36,7 @@
     font-family: 'IBM Plex Sans', sans-serif;
     line-height: 1.6;
     -webkit-font-smoothing: antialiased;
+    zoom: 1.2;
   }
   ::selection { background: var(--cyan-dim); color: var(--cyan); }
 
@@ -111,14 +114,18 @@
   }
   .node .n-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: var(--dim); text-transform: uppercase; margin-bottom: 6px; }
   .node .n-title { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
-  .node .n-status { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--dim); min-height: 14px; }
+  .node .n-status { font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; color: var(--muted); min-height: 14px; }
   .node.active { border-color: var(--cyan); background: var(--cyan-dim); }
   .node.active .n-status { color: var(--cyan); }
+  .node.clear { border-color: var(--green); background: var(--green-dim); }
+  .node.clear .n-status { color: var(--green); }
   .node.hit { border-color: var(--amber); background: var(--amber-dim); }
   .node.hit .n-status { color: var(--amber); }
+  .node.skip { border-color: var(--border-strong); background: var(--surface); }
+  .node.skip .n-status { color: var(--dim); }
   .node.flag { border-color: var(--coral); background: var(--coral-dim); }
   .node.flag .n-status { color: var(--coral); }
-  .node.done .n-status { color: var(--muted); }
+  .node.done .n-status { color: var(--green); }
 
   .output-box {
     background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
@@ -216,6 +223,8 @@
           <div class="n-status" id="status-infer">Waiting</div>
         </div>
       </div>
+
+      <div id="cache-banner" style="display:none; margin-bottom:12px; padding:10px 14px; border-radius:8px; font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:600;"></div>
 
       <div class="output-box" id="output">
         <span class="a-tag">Response</span>
@@ -342,6 +351,9 @@ async function runQuery() {
 
   const start = performance.now();
 
+  const banner = document.getElementById("cache-banner");
+  banner.style.display = "none";
+
   try {
     const res = await fetch(API_URL, {
       method: "POST",
@@ -356,22 +368,50 @@ async function runQuery() {
     }
 
     const data = await res.json();
-    const text = typeof data === "string" ? data : (data.response || JSON.stringify(data));
+    const isObj = data && typeof data === "object" && "response" in data;
+    const text = isObj ? data.response : (typeof data === "string" ? data : JSON.stringify(data));
+    const cacheHit = isObj ? !!data.cache_hit : null;
+    const model = isObj ? data.model : null;
+    const piiRedacted = isObj && data.pii_redacted ? data.pii_redacted : [];
 
-    setNode("scrub", "done", "Clear");
-    setNode("cache", "done", elapsed < 400 ? "Likely hit" : "Miss");
-    setNode("route", "done", "Routed");
-    setNode("infer", "done", elapsed + "ms");
+    setNode("scrub", piiRedacted.length ? "flag" : "clear", piiRedacted.length ? piiRedacted.join(", ") : "Clean");
+
+    if (cacheHit === true) {
+      setNode("cache", "hit", "HIT — $0 cost");
+      setNode("route", "skip", "Skipped");
+    } else if (cacheHit === false) {
+      setNode("cache", "clear", "Miss");
+      setNode("route", "clear", "Routed");
+    } else {
+      setNode("cache", "done", elapsed < 400 ? "Likely hit" : "Miss");
+      setNode("route", "done", "Routed");
+    }
+    setNode("infer", cacheHit ? "skip" : "done", cacheHit ? "Skipped" : elapsed + "ms");
 
     outputText.textContent = text;
 
+    if (cacheHit === true) {
+      banner.style.display = "block";
+      banner.style.background = "var(--amber-dim)";
+      banner.style.border = "1px solid #6B4E17";
+      banner.style.color = "var(--amber)";
+      banner.textContent = "⚡ Served from semantic cache — no LLM call made, $0 cost";
+    } else if (cacheHit === false) {
+      banner.style.display = "block";
+      banner.style.background = "var(--green-dim)";
+      banner.style.border = "1px solid #2A5A3E";
+      banner.style.color = "var(--green)";
+      banner.textContent = "→ Cache miss — routed to live inference";
+    }
+
     document.getElementById("meta-row").style.display = "flex";
     document.getElementById("m-latency").textContent = elapsed + "ms";
-    document.getElementById("m-model").textContent = elapsed < 400 ? "cache" : "llama-3.1-8b-instant";
+    document.getElementById("m-model").textContent = model || (elapsed < 400 ? "cache" : "llama-3.1-8b-instant");
     document.getElementById("m-cost").textContent = "$0.000000";
 
     stats.requests++;
-    if (elapsed < 400) stats.hits++;
+    if (cacheHit === true) stats.hits++;
+    if (piiRedacted.length) stats.pii++;
     stats.latencies.push(elapsed);
     updateStats();
 
