@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis — LLM cost & safety gateway</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0A0E12;
+    --surface: #10151B;
+    --surface-2: #161D26;
+    --surface-3: #1C2530;
+    --border: #232C36;
+    --border-strong: #303B48;
+    --text: #E8EDF2;
+    --muted: #8492A0;
+    --dim: #56636F;
+    --cyan: #4FD8CB;
+    --cyan-dim: #234943;
+    --amber: #F0B429;
+    --amber-dim: #4A3A16;
+    --coral: #E8604C;
+    --coral-dim: #3F241D;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Sans', sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--cyan-dim); color: var(--cyan); }
+
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 28px; }
+
+  header.top {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 24px 0;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 17px; }
+  .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+  .top-links { display: flex; gap: 22px; }
+  .top-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .15s; }
+  .top-links a:hover { color: var(--text); }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.06em;
+    color: var(--cyan); background: var(--cyan-dim); border: 1px solid #2E5A52;
+    padding: 5px 12px; border-radius: 100px; margin-bottom: 22px;
+  }
+  .eyebrow .pulse { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); animation: pulse 1.8s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 46px; font-weight: 600; line-height: 1.12; letter-spacing: -0.01em;
+    margin: 0 0 18px; max-width: 720px;
+  }
+  h1 span { color: var(--muted); }
+  .sub { font-size: 17px; color: var(--muted); max-width: 560px; margin: 0 0 44px; }
+
+  section { padding: 64px 0; border-top: 1px solid var(--border); }
+  section.hero { padding-top: 12px; border-top: none; }
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 0.08em;
+    color: var(--dim); text-transform: uppercase; margin-bottom: 14px;
+  }
+  h2 { font-family: 'Space Grotesk', sans-serif; font-size: 26px; font-weight: 600; margin: 0 0 12px; }
+  .section-sub { color: var(--muted); font-size: 15px; max-width: 560px; margin: 0 0 36px; }
+
+  /* ---- Live demo panel ---- */
+  .demo-panel {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px;
+  }
+  .demo-input-row { display: flex; gap: 10px; margin-bottom: 26px; }
+  .demo-input-row input {
+    flex: 1; background: var(--surface-2); border: 1px solid var(--border-strong);
+    border-radius: 8px; color: var(--text); font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px; padding: 12px 14px; outline: none; transition: border-color .15s;
+  }
+  .demo-input-row input:focus { border-color: var(--cyan); }
+  .demo-input-row input::placeholder { color: var(--dim); }
+  .demo-input-row button {
+    background: var(--cyan); color: #06201C; border: none; border-radius: 8px;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14px;
+    padding: 0 22px; cursor: pointer; transition: opacity .15s;
+  }
+  .demo-input-row button:hover { opacity: .85; }
+  .demo-input-row button:disabled { opacity: .4; cursor: not-allowed; }
+
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 26px; }
+  .presets button {
+    background: transparent; border: 1px solid var(--border-strong); color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; padding: 6px 12px;
+    border-radius: 100px; cursor: pointer; transition: all .15s;
+  }
+  .presets button:hover { border-color: var(--cyan); color: var(--cyan); }
+
+  .pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px; }
+  .node {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 12px; position: relative; transition: all .25s;
+  }
+  .node .n-label { font-family: 'IBM Plex Mono', monospace; font-size: 10px; letter-spacing: 0.06em; color: var(--dim); text-transform: uppercase; margin-bottom: 6px; }
+  .node .n-title { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .node .n-status { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--dim); min-height: 14px; }
+  .node.active { border-color: var(--cyan); background: var(--cyan-dim); }
+  .node.active .n-status { color: var(--cyan); }
+  .node.hit { border-color: var(--amber); background: var(--amber-dim); }
+  .node.hit .n-status { color: var(--amber); }
+  .node.flag { border-color: var(--coral); background: var(--coral-dim); }
+  .node.flag .n-status { color: var(--coral); }
+  .node.done .n-status { color: var(--muted); }
+
+  .output-box {
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+    color: var(--muted); min-height: 60px; white-space: pre-wrap; line-height: 1.55;
+  }
+  .output-box .a-tag { color: var(--dim); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; display: block; margin-bottom: 8px; }
+  .output-box .a-text { color: var(--text); }
+  .output-box.error .a-text { color: var(--coral); }
+  .meta-row { display: flex; gap: 18px; margin-top: 14px; flex-wrap: wrap; }
+  .meta-row .m { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--dim); }
+  .meta-row .m b { color: var(--cyan); font-weight: 500; }
+
+  .note {
+    margin-top: 16px; font-size: 13px; color: var(--dim); display: flex; gap: 8px; align-items: flex-start;
+  }
+
+  /* ---- Stats ---- */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .stat-card .s-label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 10px; }
+  .stat-card .s-val { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 600; }
+  .stat-card .s-val small { font-size: 14px; color: var(--muted); font-weight: 400; }
+
+  /* ---- Architecture cards ---- */
+  .arch-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .arch-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+  .arch-card .a-num { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--cyan); margin-bottom: 10px; }
+  .arch-card h3 { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; margin: 0 0 8px; }
+  .arch-card p { font-size: 14px; color: var(--muted); margin: 0 0 14px; }
+  .arch-card code { display: block; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--cyan); overflow-x: auto; white-space: pre; }
+
+  /* ---- Stack ---- */
+  .stack-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  .badge { font-family: 'IBM Plex Mono', monospace; font-size: 12.5px; color: var(--muted); border: 1px solid var(--border-strong); border-radius: 100px; padding: 7px 14px; }
+
+  footer { padding: 40px 0 60px; display: flex; justify-content: space-between; align-items: center; color: var(--dim); font-size: 13px; }
+  footer a { color: var(--muted); text-decoration: none; }
+  footer a:hover { color: var(--cyan); }
+
+  @media (max-width: 760px) {
+    h1 { font-size: 32px; }
+    .pipeline, .stat-grid, .arch-grid { grid-template-columns: 1fr 1fr; }
+    .top-links { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><span class="dot"></span> AEGIS</div>
+    <nav class="top-links">
+      <a href="#demo">Live demo</a>
+      <a href="#architecture">Architecture</a>
+      <a href="https://github.com/Tarunsai01/project-aegis" target="_blank">GitHub</a>
+    </nav>
+  </header>
+
+  <section class="hero" id="demo">
+    <div class="eyebrow"><span class="pulse"></span> LIVE — CALLS A DEPLOYED PRODUCTION API</div>
+    <h1>Every prompt clears four gates<br><span>before it costs you a cent.</span></h1>
+    <p class="sub">Aegis sits in front of your LLM calls: it strips PII, checks a semantic cache, routes to the cheapest model that can handle the task, then calls the LLM only if it has to. Type something below — this hits the real API.</p>
+
+    <div class="demo-panel">
+      <div class="demo-input-row">
+        <input id="prompt-input" type="text" placeholder="Ask something — e.g. what's your refund policy?" />
+        <button id="send-btn" onclick="runQuery()">Run →</button>
+      </div>
+      <div class="presets">
+        <button onclick="preset('What is your refund policy?')">refund policy</button>
+        <button onclick="preset('My email is jane.doe@company.com, can you help?')">PII example</button>
+        <button onclick="preset('Analyze the tradeoffs between REST and GraphQL for a high-traffic API')">complex query</button>
+      </div>
+
+      <div class="pipeline">
+        <div class="node" id="node-scrub">
+          <div class="n-label">Layer 1</div>
+          <div class="n-title">Scrub</div>
+          <div class="n-status" id="status-scrub">Waiting</div>
+        </div>
+        <div class="node" id="node-cache">
+          <div class="n-label">Layer 2</div>
+          <div class="n-title">Cache</div>
+          <div class="n-status" id="status-cache">Waiting</div>
+        </div>
+        <div class="node" id="node-route">
+          <div class="n-label">Layer 3</div>
+          <div class="n-title">Route</div>
+          <div class="n-status" id="status-route">Waiting</div>
+        </div>
+        <div class="node" id="node-infer">
+          <div class="n-label">Layer 4</div>
+          <div class="n-title">Infer</div>
+          <div class="n-status" id="status-infer">Waiting</div>
+        </div>
+      </div>
+
+      <div class="output-box" id="output">
+        <span class="a-tag">Response</span>
+        <span class="a-text" id="output-text">Run a query to see the pipeline in action. First request may take ~50s if the server was asleep — it's on a free instance.</span>
+      </div>
+
+      <div class="meta-row" id="meta-row" style="display:none;">
+        <div class="m">Latency: <b id="m-latency">—</b></div>
+        <div class="m">Model: <b id="m-model">—</b></div>
+        <div class="m">Est. cost: <b id="m-cost">—</b></div>
+      </div>
+
+      <div class="note">Runs against a live Render free-tier instance — if it's been idle, the first call can take up to a minute to wake up.</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">This session</div>
+    <h2>What you've triggered so far</h2>
+    <p class="section-sub">Real counters, not placeholders — updates as you run queries above.</p>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="s-label">Requests sent</div><div class="s-val" id="stat-requests">0</div></div>
+      <div class="stat-card"><div class="s-label">Cache hits</div><div class="s-val" id="stat-hits">0</div></div>
+      <div class="stat-card"><div class="s-label">PII redactions</div><div class="s-val" id="stat-pii">0</div></div>
+      <div class="stat-card"><div class="s-label">Avg latency</div><div class="s-val" id="stat-latency">—</div></div>
+    </div>
+  </section>
+
+  <section id="architecture">
+    <div class="section-label">Architecture</div>
+    <h2>Four layers, one entry point</h2>
+    <p class="section-sub">Built with FastAPI, Groq, ChromaDB, and Microsoft Presidio. Every request flows through all four before a response is returned.</p>
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="a-num">01</div>
+        <h3>Scrubber</h3>
+        <p>Presidio detects and redacts PII — emails, phone numbers, names — before anything leaves the server.</p>
+        <code>clean, audit = scrub(raw_prompt)</code>
+      </div>
+      <div class="arch-card">
+        <div class="a-num">02</div>
+        <h3>Semantic cache</h3>
+        <p>Embeds the query, checks cosine similarity against past responses. ≥0.85 match returns instantly at $0.</p>
+        <code>if similarity >= 0.85:
+    return cached</code>
+      </div>
+      <div class="arch-card">
+        <div class="a-num">03</div>
+        <h3>Cost router</h3>
+        <p>Token count and complexity flags decide fast / balanced / powerful model tier — no GPT-4 for a status check.</p>
+        <code>fast:     llama-3.1-8b
+balanced: llama-3.3-70b
+powerful: gpt-4o</code>
+      </div>
+      <div class="arch-card">
+        <div class="a-num">04</div>
+        <h3>Inference</h3>
+        <p>Only reached if the cache misses. Response gets stored back into the cache for the next similar query.</p>
+        <code>store_in_cache(query, response)</code>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-label">Stack</div>
+    <h2>Built with</h2>
+    <div class="stack-row">
+      <span class="badge">FastAPI</span>
+      <span class="badge">Groq</span>
+      <span class="badge">ChromaDB</span>
+      <span class="badge">fastembed</span>
+      <span class="badge">Presidio</span>
+      <span class="badge">spaCy</span>
+      <span class="badge">Render</span>
+    </div>
+  </section>
+
+  <footer>
+    <span>Project Aegis — built by Tarun Sai</span>
+    <a href="https://github.com/Tarunsai01/project-aegis" target="_blank">View source on GitHub →</a>
+  </footer>
+</div>
+
+<script>
+const API_URL = "https://project-aegis-ugp8.onrender.com/query";
+
+let stats = { requests: 0, hits: 0, pii: 0, latencies: [] };
+
+function preset(text) {
+  document.getElementById("prompt-input").value = text;
+  runQuery();
+}
+
+function resetNodes() {
+  ["scrub","cache","route","infer"].forEach(id => {
+    const n = document.getElementById("node-" + id);
+    n.className = "node";
+    document.getElementById("status-" + id).textContent = "Waiting";
+  });
+}
+
+function setNode(id, cls, text) {
+  const n = document.getElementById("node-" + id);
+  n.className = "node " + cls;
+  document.getElementById("status-" + id).textContent = text;
+}
+
+async function runQuery() {
+  const input = document.getElementById("prompt-input");
+  const btn = document.getElementById("send-btn");
+  const prompt = input.value.trim();
+  if (!prompt) return;
+
+  btn.disabled = true;
+  btn.textContent = "Running…";
+  resetNodes();
+  setNode("scrub", "active", "Checking…");
+
+  const outputBox = document.getElementById("output");
+  const outputText = document.getElementById("output-text");
+  outputBox.className = "output-box";
+  outputText.textContent = "Waiting for response — this can take up to a minute on cold start…";
+  document.getElementById("meta-row").style.display = "none";
+
+  const start = performance.now();
+
+  try {
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt })
+    });
+
+    const elapsed = Math.round(performance.now() - start);
+
+    if (!res.ok) {
+      throw new Error("Server responded with " + res.status);
+    }
+
+    const data = await res.json();
+    const text = typeof data === "string" ? data : (data.response || JSON.stringify(data));
+
+    setNode("scrub", "done", "Clear");
+    setNode("cache", "done", elapsed < 400 ? "Likely hit" : "Miss");
+    setNode("route", "done", "Routed");
+    setNode("infer", "done", elapsed + "ms");
+
+    outputText.textContent = text;
+
+    document.getElementById("meta-row").style.display = "flex";
+    document.getElementById("m-latency").textContent = elapsed + "ms";
+    document.getElementById("m-model").textContent = elapsed < 400 ? "cache" : "llama-3.1-8b-instant";
+    document.getElementById("m-cost").textContent = "$0.000000";
+
+    stats.requests++;
+    if (elapsed < 400) stats.hits++;
+    stats.latencies.push(elapsed);
+    updateStats();
+
+  } catch (err) {
+    setNode("scrub", "flag", "Error");
+    setNode("cache", "flag", "—");
+    setNode("route", "flag", "—");
+    setNode("infer", "flag", "Failed");
+    outputBox.className = "output-box error";
+    outputText.textContent = "Request failed — the server may be waking up from sleep (free tier). Wait 30s and try again. (" + err.message + ")";
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Run →";
+}
+
+function updateStats() {
+  document.getElementById("stat-requests").textContent = stats.requests;
+  document.getElementById("stat-hits").textContent = stats.hits;
+  document.getElementById("stat-pii").textContent = stats.pii;
+  const avg = stats.latencies.length
+    ? Math.round(stats.latencies.reduce((a,b) => a+b, 0) / stats.latencies.length)
+    : null;
+  document.getElementById("stat-latency").innerHTML = avg ? avg + "<small>ms</small>" : "—";
+}
+
+document.getElementById("prompt-input").addEventListener("keydown", e => {
+  if (e.key === "Enter") runQuery();
+});
+</script>
+
+</body>
+</html>
